@@ -1,0 +1,94 @@
+#!/bin/bash
+
+#################################################################
+# jellyfin-plex-optimizer - Optimize images for Jellyfin & Plex #
+# Author: q3aql@duck.com                                        #
+# License: GPLv2.0                                              #
+# Date: 28/12/2024                                              #
+################################################################# 
+
+# Check if process have root permissions
+mkdir -p /etc/root &> /dev/null
+administrador=$?
+if [ ${administrador} -eq 0 ] ; then
+  rm -rf /etc/root
+else
+  echo "jellyfin-plex-optimizer: root permissions are required"
+  exit
+fi
+
+# Check if dependencies are installed
+path_check="/usr/bin /bin /usr/local/bin ${HOME}/.local/bin $(brew --prefix 2> /dev/null)/bin"
+dependencies="ffmpeg convert"
+dependencies_found=""
+dependencies_not_found=""
+for checkPath in ${path_check} ; do
+  for checkDependencies in ${dependencies} ; do
+    if [ -f ${checkPath}/${checkDependencies} ] ; then
+      dependencies_found="${dependencies_found} ${checkDependencies}"
+    fi
+  done
+done
+for notFound in ${dependencies} ; do
+  check_found_one=$(echo ${dependencies_found} | grep " ${notFound}")
+  check_found_two=$(echo ${dependencies_found} | grep "${notFound} ")
+  if_not_found="${check_found_one}${check_found_two}"
+  if [ -z "${if_not_found}" ] ; then
+    dependencies_not_found="${dependencies_not_found} ${notFound}"
+  fi
+done
+# Show if all tools are installed
+if [ -z "${dependencies_not_found}" ] ; then
+  echo > /dev/null
+else
+  echo ""
+  echo "jellyfin-plex-optimizer"
+  echo ""
+  echo "Some required tools are not installed:${dependencies_not_found}"
+  echo "The process has been stopped"
+  echo ""
+  exit
+fi
+
+optimize_folders="/var/cache/jellyfin/images /var/lib/jellyfin/metadata /var/lib/plexmediaserver/Library"
+tmp_optimize="/tmp/jellyfin-plex-optimizer.txt"
+
+echo ""
+echo "Running jellyfin-plex-optimizer"
+for folder_scan in ${optimize_folders} ; do
+  if [ -d "${folder_scan}" ] ; then
+    count_optimized=0
+    echo -n "Optimized: ${folder_scan} (0 files)"
+    find ${folder_scan}/ -type f -name '*.jpg' -print > ${tmp_optimize}
+    find ${folder_scan}/ -type f -name '*.png' -print >> ${tmp_optimize}
+    find ${folder_scan}/ -type f -name '*.webp' -print >> ${tmp_optimize}
+    find ${folder_scan}/ -type f -name '*.movie_*' -print >> ${tmp_optimize}
+    find ${folder_scan}/ -type f -name '*.themoviedb_*' -print >> ${tmp_optimize}
+    find ${folder_scan}/ -type f -name '*.series_*' -print >> ${tmp_optimize}
+    find ${folder_scan}/ -type f -name '*.thetvdb_*' -print >> ${tmp_optimize}
+    find ${folder_scan}/ -type f -name '*.plexthememusic_*' -print >> ${tmp_optimize}
+    while read file; do
+      rel_file=$(ffmpeg -i "${file}" 2>&1 | grep Stream | grep -Po '\d{3,5}x\d{3,5}' 2> /dev/null | head -1 | cut -d "x" -f 1)
+      if [ ! -z "${rel_file}" ] ; then
+        if [ ${rel_file} -gt 501 ] ; then
+          if [ ${rel_file} -eq 1600 ] ; then
+            echo > /dev/null
+          elif [ ${rel_file} -gt 1600 ] ; then
+            convert -resize 1600x900 "${file}" "${file}"
+            count_optimized=$((${count_optimized} + 1))
+            #echo "Optimized: ${file}"
+            echo -n -e "\rOptimized: ${folder_scan} (${count_optimized} files)"
+          else
+            convert -resize 500x750 "${file}" "${file}"
+            count_optimized=$((${count_optimized} + 1))
+            #echo "Optimized: ${file}"
+            echo -n -e "\rOptimized: ${folder_scan} (${count_optimized} files)"
+          fi
+        fi
+      fi
+    done <${tmp_optimize}
+    echo ""
+  fi
+done
+echo "Done"
+
