@@ -11,7 +11,7 @@ sudo apt install ffmpeg imagemagick
 ## Install:
 
 ```
-git clone https://git.q3aql.dev/q3aql/jellyfin-plex-optimizer
+git clone https://github.com/asdo92/jellyfin-plex-optimizer
 cd jellyfin-plex-optimizer
 sudo make install 
 ```
